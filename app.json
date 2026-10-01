@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "FinZen",
+    "slug": "finzen",
+    "scheme": "finzen",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#070912",
+    "splash": {
+      "backgroundColor": "#070912",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.finzen.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "FinZen usa Face ID para que ingreses de forma segura."
+      }
+    },
+    "android": {
+      "package": "com.finzen.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#070912"
+      },
+      "allowBackup": false,
+      "permissions": [
+        "USE_BIOMETRIC",
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.USE_FINGERPRINT"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "FinZen",
+      "shortName": "FinZen",
+      "description": "Finanzas personales: ingresos, gastos, metas, pagos e informes.",
+      "themeColor": "#7c6bff",
+      "backgroundColor": "#070912"
+    },
+    "experiments": {
+      "baseUrl": "/finzen"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-mail-composer",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-local-authentication",
+        { "faceIDPermission": "FinZen usa Face ID para que ingreses de forma segura." }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "FinZen usa la cámara para fotografiar tus facturas.",
+          "photosPermission": "FinZen accede a tus fotos para adjuntar facturas y tu foto de perfil."
+        }
+      ],
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "FinZen guarda dónde hiciste un gasto (opcional)." }
+      ],
+      [
+        "expo-notifications",
+        { "color": "#7c6bff" }
+      ]
+    ]
+  }
+}
