@@ -18,12 +18,12 @@ import { t } from "../lib/i18n";
 import { notify, confirm, errorMessage } from "../lib/alert";
 import {
   getCategories, getAccountBalances, getTransaction, saveTransaction, deleteTransaction, getAttachments,
-  saveRecurringPayment, deleteRecurringPayment, getRecurringPayments,
+  saveRecurringPayment, deleteRecurringPayment, getRecurringPayments, createAccount,
 } from "../lib/queries";
 import {
   takePhoto, pickImage, pickDocument, uploadAttachment, deleteAttachment, currentLocation, type LocalFile,
 } from "../lib/attachments";
-import type { Category, AccountBalance, TxType, ExpenseType, PaymentMethod, Attachment, Frequency } from "../lib/types";
+import type { Category, AccountBalance, TxType, ExpenseType, PaymentMethod, Attachment, Frequency, AccountType } from "../lib/types";
 
 // Frecuencias ofrecidas al registrar un gasto fijo (p. ej. arriendo mensual, universidad semestral)
 const REPEAT_OPTIONS: Frequency[] = ["monthly", "bimonthly", "quarterly", "semiannual", "annual"];
@@ -41,7 +41,8 @@ export default function TransactionForm() {
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState<string>(todayISO());
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [accountId, setAccountId] = useState<string | null>(null);
+  const [selectedAccountId, setAccountId] = useState<string | null>(null);
+  const accountId = selectedAccountId;
   const [toAccountId, setToAccountId] = useState<string | null>(null);
   const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [desc, setDesc] = useState("");
@@ -102,9 +103,27 @@ export default function TransactionForm() {
     finally { setLocBusy(false); }
   }
 
+  /** Crea una cuenta sin salir del formulario y la deja seleccionada. */
+  async function quickAccount(name: string, kind: AccountType): Promise<string | null> {
+    try {
+      const id = await createAccount({ name, type: kind, initial_balance: 0 });
+      setAccts(await getAccountBalances());
+      setAccountId(id);
+      return id;
+    } catch (e) { notify(errorMessage(e)); return null; }
+  }
+
   async function save() {
     const value = parseAmount(amount);
     if (!value || value <= 0) return notify(t("Escribe un valor válido"));
+    let accountId = selectedAccountId;
+    if (!accountId && accts.length === 0) {
+      const ok = await confirm(t("Aún no tienes cuentas. ¿Creamos la cuenta «Efectivo» y guardamos el movimiento ahí? Luego puedes crear tus cuentas de banco en Más → Cuentas."),
+        { okLabel: t("Crear y guardar") });
+      if (!ok) return;
+      accountId = await quickAccount(t("Efectivo"), "cash");
+      if (!accountId) return;
+    }
     if (!accountId) return notify(t("Selecciona una cuenta (créala en Más → Cuentas)"));
     if (type === "transfer" && (!toAccountId || toAccountId === accountId)) return notify(t("Elige una cuenta destino diferente"));
     const repeating = !editing && type === "expense" && repeat ? repeat : null;
@@ -224,8 +243,14 @@ export default function TransactionForm() {
 
             <Card style={{ gap: 10 }}>
               <Label>{type === "transfer" ? t("Cuenta origen") : t("Cuenta")}</Label>
+              {accts.length === 0 && <Muted>{t("Aún no tienes cuentas: crea una aquí para guardar el movimiento.")}</Muted>}
               <ChipRow>
-                {accts.length === 0 && <Text style={{ color: theme.muted, fontSize: 12 }}>{t("Sin cuentas")}</Text>}
+                {accts.length === 0 && (
+                  <>
+                    <Chip label={t("+ Efectivo")} icon="cash-outline" color={color} active={false} onPress={() => quickAccount(t("Efectivo"), "cash")} />
+                    <Chip label={t("+ Cuenta bancaria")} icon="card-outline" color={color} active={false} onPress={() => quickAccount(t("Cuenta bancaria"), "savings")} />
+                  </>
+                )}
                 {accts.map((a) => (
                   <Chip key={a.account_id} label={a.name} icon="wallet-outline" color={color}
                     active={a.account_id === accountId} onPress={() => setAccountId(a.account_id)} />

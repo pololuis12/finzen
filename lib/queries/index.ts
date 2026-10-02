@@ -81,7 +81,8 @@ export async function getAccountBalances(): Promise<AccountBalance[]> {
   return (data ?? []).map((a: any) => ({ ...a, initial_balance: num(a.initial_balance), current_balance: num(a.current_balance) }));
 }
 
-export async function createAccount(a: Partial<Account>, opts: { initialAsIncome?: boolean } = {}) {
+/** Crea la cuenta y devuelve su id. */
+export async function createAccount(a: Partial<Account>, opts: { initialAsIncome?: boolean } = {}): Promise<string> {
   const { initial_balance = 0, ...rest } = a;
   const asIncome = !!opts.initialAsIncome && initial_balance > 0;
   const { data, error } = await supabase.from("accounts")
@@ -89,6 +90,7 @@ export async function createAccount(a: Partial<Account>, opts: { initialAsIncome
   if (error) throw error;
   if (asIncome) await registerIncomeFromInitial(data.id, initial_balance, rest.name ?? "");
   notifyDataChanged();
+  return data.id;
 }
 
 /** Registra el dinero como ingreso de hoy (cuenta en "Ingresos del mes"), en vez de dejarlo como saldo inicial. */
