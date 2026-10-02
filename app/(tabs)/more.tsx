@@ -54,7 +54,7 @@ export default function More() {
         <ListRow icon="settings-outline" label={t("Configuración")} sub={t("Biometría, tema, moneda, idioma, respaldos")} onPress={() => router.push("/settings")} />
         <ListRow icon="log-out-outline" label={t("Cerrar sesión")} danger onPress={logout} />
       </Card>
-      <Text style={{ color: theme.mutedDim, fontSize: 11, textAlign: "center" }}>FinZen 2.0</Text>
+      <Text style={{ color: theme.mutedDim, fontSize: 11, textAlign: "center" }}>FinZen 2.0 · {t("versión")} {process.env.EXPO_PUBLIC_BUILD_ID ?? "local"}</Text>
     </Screen>
   );
 }

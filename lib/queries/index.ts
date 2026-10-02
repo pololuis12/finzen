@@ -136,12 +136,14 @@ const EXTRA_CATEGORIES: Omit<Category, "id" | "user_id" | "archived">[] = [
   { name: "Mi Pago", kind: "expense", expense_type: "fixed", icon: "phone-portrait-outline", color: "#7c3aed", is_ant: false },
   { name: "Servicios EPM", kind: "expense", expense_type: "fixed", icon: "water-outline", color: "#f97316", is_ant: false },
   { name: "Servicios Tigo", kind: "expense", expense_type: "fixed", icon: "wifi-outline", color: "#2563eb", is_ant: false },
+  { name: "Universidad", kind: "expense", expense_type: "fixed", icon: "school-outline", color: "#4f46e5", is_ant: false },
 ];
 let extrasChecked = false;
 
-/** Agrega las categorías de EXTRA_CATEGORIES que el usuario aún no tenga (una vez por sesión; respeta las archivadas). */
-export async function ensureExtraCategories() {
-  if (extrasChecked) return;
+/** Agrega las categorías de EXTRA_CATEGORIES que el usuario aún no tenga (una vez por sesión, salvo `force`;
+ *  respeta las que el usuario ocultó). Devuelve cuántas agregó. */
+export async function ensureExtraCategories(force = false): Promise<number> {
+  if (extrasChecked && !force) return 0;
   const { data, error } = await supabase.from("categories").select("name, kind");
   if (error) throw error;
   const have = new Set((data ?? []).map((c) => `${c.kind}:${c.name.toLowerCase()}`));
@@ -152,6 +154,7 @@ export async function ensureExtraCategories() {
     notifyDataChanged();
   }
   extrasChecked = true;
+  return missing.length;
 }
 
 export async function saveCategory(c: Partial<Category>) {

@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { View, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Screen, ScreenHeader, Card, Field, Button, SegBar, ToggleRow, IconCircle, Label, FadeIn, IconButton,
+  Screen, ScreenHeader, Card, Field, Button, SegBar, ToggleRow, IconCircle, Label, FadeIn, IconButton, Muted,
 } from "../components/UI";
 import { useSettings } from "../components/settings";
 import { theme } from "../constants/theme";
@@ -10,7 +10,7 @@ import { safeIcon, expenseTypeLabel, PALETTE, type IconName } from "../constants
 import { t } from "../lib/i18n";
 import { useAutoReload } from "../lib/dataEvents";
 import { notify, confirm, errorMessage } from "../lib/alert";
-import { getCategories, saveCategory, archiveCategory } from "../lib/queries";
+import { getCategories, saveCategory, archiveCategory, ensureExtraCategories } from "../lib/queries";
 import type { Category, ExpenseType } from "../lib/types";
 
 const ICONS: IconName[] = [
@@ -48,6 +48,16 @@ export default function Categories() {
       setEditing(null);
       await load();
     } catch (e) { notify(errorMessage(e)); }
+    finally { setBusy(false); }
+  }
+
+  async function addSuggested() {
+    setBusy(true);
+    try {
+      const n = await ensureExtraCategories(true);
+      await load();
+      notify(n ? t("Se agregaron {n} categorías", { n }) : t("Ya tienes todas las categorías sugeridas"));
+    } catch (e) { notify(t("No se pudieron agregar las categorías: {error}", { error: errorMessage(e) })); }
     finally { setBusy(false); }
   }
 
@@ -113,6 +123,12 @@ export default function Categories() {
           </View>
         ))}
       </Card>
+      {kind === "expense" && (
+        <>
+          <Button label={t("Agregar categorías sugeridas")} icon="sparkles-outline" tone="soft" loading={busy} onPress={addSuggested} />
+          <Muted style={{ textAlign: "center" }}>{t("Tarjeta de crédito, gimnasio, ahorros, Mi Pago, EPM, Tigo, universidad…")}</Muted>
+        </>
+      )}
     </Screen>
   );
 }

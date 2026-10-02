@@ -423,6 +423,7 @@ begin
     ('Mi Pago',            'expense', 'fixed',    'phone-portrait-outline',   '#7c3aed', false),
     ('Servicios EPM',      'expense', 'fixed',    'water-outline',            '#f97316', false),
     ('Servicios Tigo',     'expense', 'fixed',    'wifi-outline',             '#2563eb', false),
+    ('Universidad',        'expense', 'fixed',    'school-outline',           '#4f46e5', false),
     ('Otros gastos',       'expense', 'normal',   'ellipsis-horizontal-circle-outline', '#94a3b8', false),
     -- Gastos hormiga
     ('Café',               'expense', 'casual',   'cafe-outline',             '#b45309', true),
