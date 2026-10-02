@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { View, Text, Pressable, Image, Modal, Linking, Platform } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Screen, ScreenHeader, Card, Button, IconButton, IconCircle, Badge, ActionSheet, Loading, ListRow, Muted,
@@ -10,6 +10,7 @@ import { theme } from "../../constants/theme";
 import { safeIcon, txTypeLabel, paymentMethodLabel, expenseTypeLabel, TX_TYPE_ICON } from "../../constants/icons";
 import { money, longDate, formatBytes, dateTime } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { useAutoReload } from "../../lib/dataEvents";
 import { notify, confirm, errorMessage } from "../../lib/alert";
 import { getTransaction, getCategories, getAccountBalances, getAttachments, deleteTransaction } from "../../lib/queries";
 import {
@@ -40,7 +41,7 @@ export default function TransactionDetail() {
     finally { setLoading(false); }
   }, [id]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
 
   async function add(fn: () => Promise<LocalFile | null>) {
     try {

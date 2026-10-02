@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Text, Pressable } from "react-native";
-import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Screen, ScreenHeader, Card, Field, Button, SegBar, Avatar, Badge, IconButton, EmptyState, FadeIn, DateField,
@@ -9,6 +8,7 @@ import { useSettings } from "../../components/settings";
 import { theme } from "../../constants/theme";
 import { money, parseAmount, longDate, relativeDays, daysUntil } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { useAutoReload } from "../../lib/dataEvents";
 import { notify, confirm, errorMessage } from "../../lib/alert";
 import { getDebts, createDebt, settleDebt } from "../../lib/queries";
 import { syncReminders } from "../../lib/notifications";
@@ -28,7 +28,7 @@ export default function Debts() {
   const load = useCallback(async () => {
     try { setItems(await getDebts()); } catch (e) { console.warn(e); }
   }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
 
   const open = items.filter((d) => d.status === "open");
   const theyOwe = useMemo(() => open.filter((d) => d.direction === "they_owe_me").reduce((s, d) => s + d.principal, 0), [open]);

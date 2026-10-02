@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Text, Pressable } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,9 +12,10 @@ import { theme } from "../../constants/theme";
 import { frequencyLabel, safeIcon } from "../../constants/icons";
 import { money, longDate, relativeDays } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { useAutoReload } from "../../lib/dataEvents";
 import { notify, confirm, errorMessage } from "../../lib/alert";
 import { getRecurringPayments, getCategories, markRecurringPaid } from "../../lib/queries";
-import { dueState, dueStateLabel, monthlyEquivalent, type DueState } from "../../lib/recurring";
+import { dueState, dueStateLabel, monthlyEquivalent, canPayNow, payableFrom, type DueState } from "../../lib/recurring";
 import { scheduleRecurringReminders } from "../../lib/notifications";
 import type { RecurringPayment, Category } from "../../lib/types";
 
@@ -36,7 +37,7 @@ export default function Recurring() {
       scheduleRecurringReminders(r).catch(() => {});
     } catch (e) { console.warn(e); }
   }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
 
   const active = items.filter((p) => p.status === "active");
   const monthly = active.reduce((a, p) => a + monthlyEquivalent(p), 0);
@@ -119,9 +120,11 @@ export default function Recurring() {
                       </View>
                     )}
                   </View>
-                  {p.status === "active" && (
-                    <Button label={t("Marcar pagado")} icon="checkmark-done-outline" tone="soft" compact
+                  {p.status === "active" && (canPayNow(p)
+                    ? <Button label={t("Marcar pagado")} icon="checkmark-done-outline" tone="soft" compact
                       loading={paying === p.id} onPress={() => pay(p)} />
+                    : <Button label={t("Se podrá pagar desde el {date}", { date: longDate(payableFrom(p)) })} icon="lock-closed-outline"
+                      tone="soft" compact disabled onPress={() => {}} />
                   )}
                   {p.notes ? <Text style={{ color: theme.muted, fontSize: 12 }} numberOfLines={2}>{p.notes}</Text> : null}
                 </Card>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +13,7 @@ import { theme } from "../../constants/theme";
 import { safeIcon } from "../../constants/icons";
 import { weekdayDate, parseAmount, money } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { useAutoReload } from "../../lib/dataEvents";
 import { searchTransactions, getCategories, type TxFilters } from "../../lib/queries";
 import type { Transaction, Category } from "../../lib/types";
 
@@ -67,10 +68,11 @@ export default function Transactions() {
     return () => clearTimeout(h);
   }, [filters]);
 
-  useFocusEffect(useCallback(() => {
+  const reload = useCallback(() => {
     getCategories().then(setCats).catch(() => {});
     load(true);
-  }, [filters]));
+  }, [filters]);
+  useAutoReload(reload);
 
   useEffect(() => { if (params.type) setType(params.type as TypeFilter); }, [params.type]);
 

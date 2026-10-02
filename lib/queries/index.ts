@@ -1,6 +1,8 @@
 import { supabase } from "../supabase";
-import { firstOfMonthISO, toISODate, todayISO, getCurrency } from "../format";
-import { nextDueDate } from "../recurring";
+import { firstOfMonthISO, toISODate, todayISO, getCurrency, longDate } from "../format";
+import { nextDueDate, canPayNow, payableFrom } from "../recurring";
+import { notifyDataChanged } from "../dataEvents";
+import { t } from "../i18n";
 import type {
   Account, AccountBalance, Category, Transaction, Debt, Investment, MonthlySummary, Profile,
   RecurringPayment, SavingsGoal, GoalContribution, Attachment, CashflowPoint, CategoryTotal, TxType,
@@ -37,6 +39,7 @@ export async function updateProfile(patch: Partial<Profile>) {
   if (!uid) throw new Error("No hay sesión activa");
   const { error } = await supabase.from("profiles").upsert({ id: uid, ...patch, updated_at: new Date().toISOString() });
   if (error) throw error;
+  notifyDataChanged();
 }
 
 // ---------------- Resúmenes y series ----------------
@@ -75,17 +78,42 @@ export async function getCategoryBreakdown(from: Date, to: Date, kind: "income" 
 export async function getAccountBalances(): Promise<AccountBalance[]> {
   const { data, error } = await supabase.from("account_balances").select("*").order("name");
   if (error) throw error;
-  return (data ?? []).map((a: any) => ({ ...a, current_balance: num(a.current_balance) }));
+  return (data ?? []).map((a: any) => ({ ...a, initial_balance: num(a.initial_balance), current_balance: num(a.current_balance) }));
 }
 
-export async function createAccount(a: Partial<Account>) {
-  const { error } = await supabase.from("accounts").insert({ currency: getCurrency(), ...a });
+export async function createAccount(a: Partial<Account>, opts: { initialAsIncome?: boolean } = {}) {
+  const { initial_balance = 0, ...rest } = a;
+  const asIncome = !!opts.initialAsIncome && initial_balance > 0;
+  const { data, error } = await supabase.from("accounts")
+    .insert({ currency: getCurrency(), ...rest, initial_balance: asIncome ? 0 : initial_balance }).select("id").single();
   if (error) throw error;
+  if (asIncome) await registerIncomeFromInitial(data.id, initial_balance, rest.name ?? "");
+  notifyDataChanged();
+}
+
+/** Registra el dinero como ingreso de hoy (cuenta en "Ingresos del mes"), en vez de dejarlo como saldo inicial. */
+async function registerIncomeFromInitial(accountId: string, amount: number, accountName: string) {
+  const { data: cat } = await supabase.from("categories").select("id")
+    .eq("kind", "income").eq("archived", false).eq("name", "Salario").limit(1).maybeSingle();
+  await saveTransaction({
+    type: "income", amount, account_id: accountId, category_id: cat?.id ?? null, occurred_at: todayISO(),
+    description: accountName || t("Ingreso"),
+  });
+}
+
+/** Convierte el saldo inicial de una cuenta existente en un ingreso de hoy. El saldo de la cuenta no cambia. */
+export async function convertInitialBalanceToIncome(a: AccountBalance) {
+  if (a.initial_balance <= 0) return;
+  await registerIncomeFromInitial(a.account_id, a.initial_balance, a.name);
+  const { error } = await supabase.from("accounts").update({ initial_balance: 0 }).eq("id", a.account_id);
+  if (error) throw error;
+  notifyDataChanged();
 }
 
 export async function archiveAccount(id: string) {
   const { error } = await supabase.from("accounts").update({ archived: true }).eq("id", id);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 // ---------------- Categorías ----------------
@@ -100,11 +128,13 @@ export async function saveCategory(c: Partial<Category>) {
     ? await supabase.from("categories").update(c).eq("id", c.id)
     : await supabase.from("categories").insert(c);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 export async function archiveCategory(id: string) {
   const { error } = await supabase.from("categories").update({ archived: true }).eq("id", id);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 // ---------------- Transacciones ----------------
@@ -167,11 +197,13 @@ export async function saveTransaction(tx: Partial<Transaction>): Promise<string>
   if (row.id) {
     const { error } = await supabase.from("transactions").update({ ...row, updated_at: new Date().toISOString() }).eq("id", row.id);
     if (error) throw error;
+    notifyDataChanged();
     return row.id;
   }
   const { data, error } = await supabase.from("transactions")
     .insert({ currency: getCurrency(), ...row }).select("id").single();
   if (error) throw error;
+  notifyDataChanged();
   return data.id;
 }
 
@@ -180,6 +212,7 @@ export async function deleteTransaction(id: string) {
   if (files?.length) await supabase.storage.from("attachments").remove(files.map((f) => f.storage_path));
   const { error } = await supabase.from("transactions").delete().eq("id", id);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 // ---------------- Pagos recurrentes ----------------
@@ -195,24 +228,42 @@ export async function getRecurringPayment(id: string): Promise<RecurringPayment 
   return data ? { ...data, amount: num(data.amount) } : null;
 }
 
-export async function saveRecurringPayment(p: Partial<RecurringPayment>) {
+/** Inserta o actualiza. Devuelve el id. */
+export async function saveRecurringPayment(p: Partial<RecurringPayment>): Promise<string> {
   const row = { ...p, updated_at: new Date().toISOString() };
-  const { error } = p.id
-    ? await supabase.from("recurring_payments").update(row).eq("id", p.id)
-    : await supabase.from("recurring_payments").insert({ currency: getCurrency(), ...row });
+  if (p.id) {
+    const { error } = await supabase.from("recurring_payments").update(row).eq("id", p.id);
+    if (error) throw error;
+    notifyDataChanged();
+    return p.id;
+  }
+  const { data, error } = await supabase.from("recurring_payments")
+    .insert({ currency: getCurrency(), ...row }).select("id").single();
   if (error) throw error;
+  notifyDataChanged();
+  return data.id;
 }
 
 export async function deleteRecurringPayment(id: string) {
   const { error } = await supabase.from("recurring_payments").delete().eq("id", id);
   if (error) throw error;
+  notifyDataChanged();
 }
 
-/** Registra el pago como gasto y mueve el vencimiento al siguiente periodo. */
+/** Cuenta de la que sale el pago: la del pago recurrente o, si no tiene, la primera cuenta activa. */
+export async function payingAccount(p: Pick<RecurringPayment, "account_id">): Promise<AccountBalance | null> {
+  const accts = await getAccountBalances();
+  return accts.find((a) => a.account_id === p.account_id) ?? accts[0] ?? null;
+}
+
+/** Registra el pago como gasto (se descuenta del saldo de la cuenta) y mueve el vencimiento al siguiente periodo. */
 export async function markRecurringPaid(p: RecurringPayment, paidOn = todayISO()) {
+  if (!canPayNow(p)) throw new Error(t("Este pago se podrá registrar desde el {date}", { date: longDate(payableFrom(p)) }));
+  const account = await payingAccount(p);
+  if (!account) throw new Error(t("Selecciona una cuenta (créala en Más → Cuentas)"));
   await saveTransaction({
     type: "expense", expense_type: "fixed", amount: p.amount, currency: p.currency,
-    description: p.name, category_id: p.category_id, account_id: p.account_id,
+    description: p.name, category_id: p.category_id, account_id: account.account_id,
     payment_method: p.payment_method, recurring_payment_id: p.id, occurred_at: paidOn,
   });
   const next = nextDueDate(p.due_date, p.frequency);
@@ -240,16 +291,19 @@ export async function saveGoal(g: Partial<SavingsGoal>): Promise<string> {
   if (row.id) {
     const { error } = await supabase.from("savings_goals").update(row).eq("id", row.id);
     if (error) throw error;
+    notifyDataChanged();
     return row.id;
   }
   const { data, error } = await supabase.from("savings_goals").insert(row).select("id").single();
   if (error) throw error;
+  notifyDataChanged();
   return data.id;
 }
 
 export async function deleteGoal(id: string) {
   const { error } = await supabase.from("savings_goals").delete().eq("id", id);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 export async function getContributions(goalId?: string): Promise<GoalContribution[]> {
@@ -263,11 +317,13 @@ export async function getContributions(goalId?: string): Promise<GoalContributio
 export async function addContribution(c: Partial<GoalContribution>) {
   const { error } = await supabase.from("goal_contributions").insert(c);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 export async function deleteContribution(id: string) {
   const { error } = await supabase.from("goal_contributions").delete().eq("id", id);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 // ---------------- Facturas ----------------
@@ -291,11 +347,13 @@ export async function getDebts(): Promise<Debt[]> {
 export async function createDebt(d: Partial<Debt>) {
   const { error } = await supabase.from("debts").insert({ currency: getCurrency(), ...d });
   if (error) throw error;
+  notifyDataChanged();
 }
 
 export async function settleDebt(id: string) {
   const { error } = await supabase.from("debts").update({ status: "settled" }).eq("id", id);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 // ---------------- Inversiones ----------------
@@ -308,6 +366,7 @@ export async function getInvestments(): Promise<Investment[]> {
 export async function createInvestment(i: Partial<Investment>) {
   const { error } = await supabase.from("investments").insert({ currency: getCurrency(), ...i });
   if (error) throw error;
+  notifyDataChanged();
 }
 
 // ---------------- IA ----------------

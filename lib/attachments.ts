@@ -7,6 +7,7 @@ import * as Location from "expo-location";
 import { decode } from "base64-arraybuffer";
 import { supabase, currentUserId } from "./supabase";
 import { t } from "./i18n";
+import { notifyDataChanged } from "./dataEvents";
 import type { Attachment } from "./types";
 
 /** Archivo elegido localmente, aún sin subir. */
@@ -94,12 +95,14 @@ export async function uploadAttachment(transactionId: string, f: LocalFile) {
     await supabase.storage.from("attachments").remove([path]);
     throw error;
   }
+  notifyDataChanged();
 }
 
 export async function deleteAttachment(a: Pick<Attachment, "id" | "storage_path">) {
   await supabase.storage.from("attachments").remove([a.storage_path]);
   const { error } = await supabase.from("attachments").delete().eq("id", a.id);
   if (error) throw error;
+  notifyDataChanged();
 }
 
 export async function signedUrl(bucket: string, path: string, seconds = 3600) {

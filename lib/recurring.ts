@@ -45,6 +45,20 @@ export function monthlyEquivalent(p: Pick<RecurringPayment, "amount" | "frequenc
   }
 }
 
+/** Desde qué fecha se puede marcar pagado: un pago mensual (o más largo) solo dentro del mes en que vence;
+ *  uno semanal/quincenal, pocos días antes. Así no se paga dos veces el mismo periodo ni periodos futuros. */
+export function payableFrom(p: Pick<RecurringPayment, "due_date" | "frequency">): string {
+  const d = parseISODate(p.due_date);
+  if (p.frequency === "once") return toISODate(new Date(0));
+  if (p.frequency === "weekly") return toISODate(addDays(d, -2));
+  if (p.frequency === "biweekly") return toISODate(addDays(d, -5));
+  return toISODate(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+export function canPayNow(p: Pick<RecurringPayment, "due_date" | "frequency" | "status">) {
+  return p.status === "active" && daysUntil(payableFrom(p)) <= 0;
+}
+
 export type DueState = "overdue" | "today" | "soon" | "ok" | "paused" | "finished";
 
 export function dueState(p: Pick<RecurringPayment, "due_date" | "status">): DueState {

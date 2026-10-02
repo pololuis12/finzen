@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Text, Pressable, Image, Modal, Linking, Platform } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Screen, ScreenHeader, Card, Field, Chip, ChipRow, EmptyState, StatTile, Loading, Button, IconButton,
@@ -9,6 +9,7 @@ import { useSettings } from "../components/settings";
 import { theme } from "../constants/theme";
 import { money, shortDate, formatBytes } from "../lib/format";
 import { t } from "../lib/i18n";
+import { useAutoReload } from "../lib/dataEvents";
 import { notify, errorMessage } from "../lib/alert";
 import { getAttachments } from "../lib/queries";
 import { signedUrls } from "../lib/attachments";
@@ -31,7 +32,7 @@ export default function Invoices() {
     } catch (e) { notify(errorMessage(e)); }
     finally { setLoading(false); }
   }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
 
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();

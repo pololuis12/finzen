@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Text } from "react-native";
-import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Screen, ScreenHeader, Card, GradientCard, Field, Button, Chip, IconCircle, Badge, IconButton, EmptyState, FadeIn, Label,
@@ -10,6 +9,7 @@ import { theme } from "../../constants/theme";
 import { INVESTMENT_ICON, investmentTypeLabel } from "../../constants/icons";
 import { money, parseAmount } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { useAutoReload } from "../../lib/dataEvents";
 import { notify, errorMessage } from "../../lib/alert";
 import { getInvestments, createInvestment } from "../../lib/queries";
 import type { Investment, InvestmentType } from "../../lib/types";
@@ -30,7 +30,7 @@ export default function Investments() {
   const load = useCallback(async () => {
     try { setItems(await getInvestments()); } catch (e) { console.warn(e); }
   }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
 
   const totals = useMemo(() => {
     const inv = items.reduce((s, i) => s + Number(i.amount_invested), 0);

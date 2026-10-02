@@ -9,18 +9,24 @@ import {
 import { useSettings } from "../components/settings";
 import { theme } from "../constants/theme";
 import {
-  safeIcon, paymentMethodLabel, PAYMENT_METHOD_ICON, INCOME_METHODS, EXPENSE_METHODS, expenseTypeLabel,
+  safeIcon, paymentMethodLabel, PAYMENT_METHOD_ICON, INCOME_METHODS, EXPENSE_METHODS, expenseTypeLabel, frequencyLabel,
 } from "../constants/icons";
-import { parseAmount, todayISO, formatBytes, money } from "../lib/format";
+import { parseAmount, todayISO, formatBytes, money, longDate } from "../lib/format";
+import { nextDueDate } from "../lib/recurring";
+import { scheduleRecurringReminders } from "../lib/notifications";
 import { t } from "../lib/i18n";
 import { notify, confirm, errorMessage } from "../lib/alert";
 import {
   getCategories, getAccountBalances, getTransaction, saveTransaction, deleteTransaction, getAttachments,
+  saveRecurringPayment, deleteRecurringPayment, getRecurringPayments,
 } from "../lib/queries";
 import {
   takePhoto, pickImage, pickDocument, uploadAttachment, deleteAttachment, currentLocation, type LocalFile,
 } from "../lib/attachments";
-import type { Category, AccountBalance, TxType, ExpenseType, PaymentMethod, Attachment } from "../lib/types";
+import type { Category, AccountBalance, TxType, ExpenseType, PaymentMethod, Attachment, Frequency } from "../lib/types";
+
+// Frecuencias ofrecidas al registrar un gasto fijo (p. ej. arriendo mensual, universidad semestral)
+const REPEAT_OPTIONS: Frequency[] = ["monthly", "bimonthly", "quarterly", "semiannual", "annual"];
 
 export default function TransactionForm() {
   useSettings();
@@ -41,6 +47,7 @@ export default function TransactionForm() {
   const [desc, setDesc] = useState("");
   const [notes, setNotes] = useState("");
   const [isAnt, setIsAnt] = useState(!!params.ant);
+  const [repeat, setRepeat] = useState<Frequency | null>(null);
   const [loc, setLoc] = useState<{ latitude: number | null; longitude: number | null; name: string }>({ latitude: null, longitude: null, name: "" });
   const [pending, setPending] = useState<LocalFile[]>([]);
   const [existing, setExisting] = useState<Attachment[]>([]);
@@ -100,10 +107,21 @@ export default function TransactionForm() {
     if (!value || value <= 0) return notify(t("Escribe un valor válido"));
     if (!accountId) return notify(t("Selecciona una cuenta (créala en Más → Cuentas)"));
     if (type === "transfer" && (!toAccountId || toAccountId === accountId)) return notify(t("Elige una cuenta destino diferente"));
+    const repeating = !editing && type === "expense" && repeat ? repeat : null;
     setBusy(true);
+    let recurringId: string | null = null;
     try {
+      if (repeating) {
+        // El gasto de hoy queda registrado y el pago recurrente arranca en el siguiente periodo
+        const cat = cats.find((c) => c.id === categoryId);
+        recurringId = await saveRecurringPayment({
+          name: desc.trim() || cat?.name || t("Gasto fijo"), amount: value, frequency: repeating,
+          due_date: nextDueDate(date, repeating)!, last_paid_at: date, status: "active",
+          category_id: categoryId, account_id: accountId, payment_method: method,
+        });
+      }
       const id = await saveTransaction({
-        id: params.id, type, amount: value, occurred_at: date,
+        id: params.id, type, amount: value, occurred_at: date, recurring_payment_id: recurringId ?? undefined,
         expense_type: type === "expense" ? expType : null,
         category_id: type === "transfer" ? null : categoryId,
         account_id: accountId, to_account_id: type === "transfer" ? toAccountId : null,
@@ -113,8 +131,12 @@ export default function TransactionForm() {
         latitude: loc.latitude, longitude: loc.longitude, location_name: loc.name.trim() || null,
       });
       for (const f of pending) await uploadAttachment(id, f);
+      if (recurringId) scheduleRecurringReminders(await getRecurringPayments()).catch(() => {});
       router.back();
-    } catch (e) { notify(errorMessage(e)); }
+    } catch (e) {
+      if (recurringId) await deleteRecurringPayment(recurringId).catch(() => {});
+      notify(errorMessage(e));
+    }
     finally { setBusy(false); }
   }
 
@@ -165,6 +187,21 @@ export default function TransactionForm() {
                   { key: "normal", label: expenseTypeLabel("normal") },
                   { key: "casual", label: expenseTypeLabel("casual") },
                 ]} />
+                {!editing && (
+                  <>
+                    <Label>{t("¿Se repite?")}</Label>
+                    <ChipRow>
+                      <Chip label={t("No se repite")} active={!repeat} onPress={() => setRepeat(null)} />
+                      {REPEAT_OPTIONS.map((f) => (
+                        <Chip key={f} label={frequencyLabel(f)} icon="repeat-outline" color={theme.expenseTypes.fixed}
+                          active={repeat === f} onPress={() => { setRepeat(f); setExpType("fixed"); setIsAnt(false); }} />
+                      ))}
+                    </ChipRow>
+                    {repeat && (
+                      <Muted>{t("Próximo pago: {date}. Aparecerá en Próximos pagos con recordatorio para confirmarlo.", { date: longDate(nextDueDate(date, repeat)!) })}</Muted>
+                    )}
+                  </>
+                )}
               </Card>
             )}
 

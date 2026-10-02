@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { View, Text, Pressable } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Screen, GradientCard, Card, FadeIn, SectionHeader, IconCircle, IconButton, EmptyState, ProgressBar,
@@ -13,16 +13,25 @@ import { useAuth } from "../../components/auth";
 import { theme } from "../../constants/theme";
 import type { IconName } from "../../constants/icons";
 import {
-  money, monthLabel, monthShortLabel, addMonths, firstOfMonth, lastOfMonth, daysUntil, relativeDays, pct, toISODate,
+  money, shortDate, monthLabel, monthShortLabel, addMonths, firstOfMonth, lastOfMonth, daysUntil, relativeDays, pct, toISODate,
 } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { canPayNow, payableFrom } from "../../lib/recurring";
+import { useAutoReload } from "../../lib/dataEvents";
 import {
   getMonthlySummary, getAccountBalances, getCashflow, getCategoryBreakdown, getGoals, getRecurringPayments,
-  getDebts, searchTransactions, getCategories,
+  getDebts, searchTransactions, getCategories, markRecurringPaid, payingAccount,
 } from "../../lib/queries";
-import type { MonthlySummary, CashflowPoint, CategoryTotal, SavingsGoal, Transaction, Category } from "../../lib/types";
+import { notify, confirm, errorMessage } from "../../lib/alert";
+import type { MonthlySummary, CashflowPoint, CategoryTotal, SavingsGoal, Transaction, Category, RecurringPayment } from "../../lib/types";
 
-type Upcoming = { key: string; title: string; amount: number; currency: string; date: string; kind: "recurring" | "debt"; id: string };
+type Upcoming = {
+  key: string; title: string; amount: number; currency: string; date: string; kind: "recurring" | "debt"; id: string;
+  recurring?: RecurringPayment;
+};
+
+// Si una consulta falla, las demás igual actualizan la pantalla
+const safe = <T,>(p: Promise<T>, fallback: T) => p.catch((e) => { console.warn(e); return fallback; });
 
 export default function Dashboard() {
   const { profile, avatarUri } = useSettings();
@@ -36,6 +45,7 @@ export default function Dashboard() {
   const [upcoming, setUpcoming] = useState<Upcoming[]>([]);
   const [recent, setRecent] = useState<Transaction[]>([]);
   const [catMap, setCatMap] = useState<Map<string, Category>>(new Map());
+  const [paying, setPaying] = useState<string | null>(null);
 
   const name = profile?.display_name ?? session?.user.email?.split("@")[0] ?? "";
 
@@ -44,18 +54,20 @@ export default function Dashboard() {
       const now = new Date();
       const from = addMonths(firstOfMonth(now), -5);
       const [s, accts, cf, cb, g, rec, debts, txs, allCats] = await Promise.all([
-        getMonthlySummary(now), getAccountBalances(), getCashflow(from, lastOfMonth(now), "month"),
-        getCategoryBreakdown(firstOfMonth(now), lastOfMonth(now), "expense"), getGoals(), getRecurringPayments(),
-        getDebts(), searchTransactions({}, 0, 5), getCategories(),
+        safe(getMonthlySummary(now), null), safe(getAccountBalances(), []),
+        safe(getCashflow(from, lastOfMonth(now), "month"), []),
+        safe(getCategoryBreakdown(firstOfMonth(now), lastOfMonth(now), "expense"), []), safe(getGoals(), []),
+        safe(getRecurringPayments(), []), safe(getDebts(), []), safe(searchTransactions({}, 0, 5), { rows: [], count: 0 }),
+        safe(getCategories(), []),
       ]);
-      setSum(s);
+      if (s) setSum(s);
       setBalance(accts.reduce((a, b) => a + b.current_balance, 0));
       setAccountsCount(accts.length);
       setFlow(cf); setCats(cb); setGoals(g.filter((x) => x.status !== "archived"));
       setRecent(txs.rows); setCatMap(new Map(allCats.map((c) => [c.id, c])));
       const items: Upcoming[] = [
         ...rec.filter((r) => r.status === "active" && daysUntil(r.due_date) <= 30)
-          .map((r) => ({ key: `r${r.id}`, id: r.id, title: r.name, amount: r.amount, currency: r.currency, date: r.due_date, kind: "recurring" as const })),
+          .map((r) => ({ key: `r${r.id}`, id: r.id, title: r.name, amount: r.amount, currency: r.currency, date: r.due_date, kind: "recurring" as const, recurring: r })),
         ...debts.filter((d) => d.status === "open" && d.direction === "i_owe_them" && d.due_date && daysUntil(d.due_date) <= 30)
           .map((d) => ({ key: `d${d.id}`, id: d.id, title: d.counterparty, amount: d.principal, currency: d.currency, date: d.due_date!, kind: "debt" as const })),
       ].sort((a, b) => a.date.localeCompare(b.date));
@@ -63,7 +75,20 @@ export default function Dashboard() {
     } catch (e) { console.warn(e); }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
+
+  async function pay(p: RecurringPayment) {
+    const account = await safe(payingAccount(p), null);
+    if (!account) return notify(t("Selecciona una cuenta (créala en Más → Cuentas)"));
+    const ok = await confirm(t("¿Confirmas que pagaste {name} por {amount}? Se descontará de {account} (quedarán {left}) y el próximo vencimiento pasará al siguiente periodo.", {
+      name: p.name, amount: money(p.amount, p.currency), account: account.name, left: money(account.current_balance - p.amount, account.currency),
+    }), { okLabel: t("Sí, ya pagué") });
+    if (!ok) return;
+    setPaying(p.id);
+    try { await markRecurringPaid(p); await load(); }
+    catch (e) { notify(errorMessage(e)); }
+    finally { setPaying(null); }
+  }
 
   // 6 meses completos (rellena los meses sin movimientos)
   const months = Array.from({ length: 6 }, (_, i) => addMonths(firstOfMonth(), i - 5));
@@ -178,7 +203,22 @@ export default function Dashboard() {
                     {d < 0 ? `${t("Vencido")} · ${relativeDays(u.date)}` : relativeDays(u.date)}
                   </Text>
                 </View>
-                <Text style={{ color: theme.text, fontWeight: "800" }}>{money(u.amount, u.currency)}</Text>
+                <View style={{ alignItems: "flex-end", gap: 4 }}>
+                  <Text style={{ color: theme.text, fontWeight: "800" }}>{money(u.amount, u.currency)}</Text>
+                  {u.recurring && !canPayNow(u.recurring) && (
+                    <Text style={{ color: theme.mutedDim, fontSize: 11 }}>{t("Pagar desde {date}", { date: shortDate(payableFrom(u.recurring)) })}</Text>
+                  )}
+                  {u.recurring && canPayNow(u.recurring) && (
+                    <Pressable onPress={() => pay(u.recurring!)} disabled={paying === u.id} hitSlop={6}
+                      style={({ pressed }) => ({
+                        flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4,
+                        borderRadius: 999, backgroundColor: withAlpha(theme.income, 0.16), opacity: pressed || paying === u.id ? 0.6 : 1,
+                      })}>
+                      <Ionicons name={paying === u.id ? "hourglass-outline" : "checkmark-circle-outline"} size={14} color={theme.income} />
+                      <Text style={{ color: theme.income, fontSize: 12, fontWeight: "800" }}>{paying === u.id ? t("Pagando…") : t("Pagar")}</Text>
+                    </Pressable>
+                  )}
+                </View>
               </Pressable>
             );
           })}

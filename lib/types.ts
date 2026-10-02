@@ -44,6 +44,7 @@ export interface AccountBalance {
   bank: string | null;
   type: AccountType;
   currency: string;
+  initial_balance: number;
   current_balance: number;
 }
 

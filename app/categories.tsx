@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
 import { View, Text, Pressable } from "react-native";
-import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Screen, ScreenHeader, Card, Field, Button, SegBar, ToggleRow, IconCircle, Label, FadeIn, IconButton,
@@ -9,6 +8,7 @@ import { useSettings } from "../components/settings";
 import { theme } from "../constants/theme";
 import { safeIcon, expenseTypeLabel, PALETTE, type IconName } from "../constants/icons";
 import { t } from "../lib/i18n";
+import { useAutoReload } from "../lib/dataEvents";
 import { notify, confirm, errorMessage } from "../lib/alert";
 import { getCategories, saveCategory, archiveCategory } from "../lib/queries";
 import type { Category, ExpenseType } from "../lib/types";
@@ -29,7 +29,7 @@ export default function Categories() {
   const load = useCallback(async () => {
     try { setItems(await getCategories()); } catch (e) { notify(errorMessage(e)); }
   }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
 
   const shown = items.filter((c) => kind === "income" ? c.kind === "income" : kind === "ant" ? c.is_ant : c.kind === "expense" && !c.is_ant);
 

@@ -17,7 +17,7 @@ import {
   getCategories, getAccountBalances, getRecurringPayment, saveRecurringPayment, deleteRecurringPayment,
   markRecurringPaid, getRecurringPayments,
 } from "../lib/queries";
-import { reminderLabel, upcomingDueDates } from "../lib/recurring";
+import { reminderLabel, upcomingDueDates, canPayNow, payableFrom } from "../lib/recurring";
 import {
   scheduleRecurringReminders, ensureNotificationPermission, sendTestNotification,
 } from "../lib/notifications";
@@ -186,8 +186,9 @@ export default function RecurringForm() {
             </Card>
 
             <Button label={id ? t("Guardar cambios") : t("Guardar pago")} icon="checkmark" onPress={save} loading={busy} />
-            {current?.status === "active" && (
-              <Button label={t("Marcar pagado ({amount})", { amount: money(current.amount, current.currency) })} icon="checkmark-done-outline" tone="soft" onPress={payNow} />
+            {current?.status === "active" && (canPayNow(current)
+              ? <Button label={t("Marcar pagado ({amount})", { amount: money(current.amount, current.currency) })} icon="checkmark-done-outline" tone="soft" onPress={payNow} />
+              : <Button label={t("Se podrá pagar desde el {date}", { date: longDate(payableFrom(current)) })} icon="lock-closed-outline" tone="soft" disabled onPress={() => {}} />
             )}
             {current?.last_paid_at && <Muted style={{ textAlign: "center" }}>{t("Último pago: {date}", { date: longDate(current.last_paid_at) })}</Muted>}
           </>

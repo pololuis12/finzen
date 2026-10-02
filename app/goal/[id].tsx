@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { View, Text, Pressable } from "react-native";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Screen, ScreenHeader, Card, Button, IconButton, Field, DateField, SegBar, StatTile, EmptyState, Loading, Muted, Badge,
@@ -11,6 +11,7 @@ import { useSettings } from "../../components/settings";
 import { theme } from "../../constants/theme";
 import { money, pct, longDate, shortDate, parseAmount, todayISO, durationLabel, monthShortLabel, parseISODate, addMonths, firstOfMonth, toISODate } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { useAutoReload } from "../../lib/dataEvents";
 import { notify, confirm, errorMessage } from "../../lib/alert";
 import { getGoal, getContributions, addContribution, deleteContribution, deleteGoal, saveGoal } from "../../lib/queries";
 import { goalStats, linearProjection } from "../../lib/analytics";
@@ -40,7 +41,7 @@ export default function GoalDetail() {
     } catch (e) { notify(errorMessage(e)); }
     finally { setLoading(false); }
   }, [id]);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
 
   async function contribute() {
     const v = parseAmount(amount);

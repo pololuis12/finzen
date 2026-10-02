@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { View, Text, Pressable } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScrollView, RefreshControl } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +12,7 @@ import { theme } from "../../constants/theme";
 import { safeIcon } from "../../constants/icons";
 import { money, pct, durationLabel, longDate } from "../../lib/format";
 import { t } from "../../lib/i18n";
+import { useAutoReload } from "../../lib/dataEvents";
 import { getGoals } from "../../lib/queries";
 import { goalStats } from "../../lib/analytics";
 import type { SavingsGoal } from "../../lib/types";
@@ -24,7 +25,7 @@ export default function Goals() {
   const load = useCallback(async () => {
     try { setGoals(await getGoals()); } catch (e) { console.warn(e); }
   }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
 
   const live = goals.filter((g) => g.status !== "archived");
   const saved = live.reduce((a, g) => a + g.saved_amount, 0);

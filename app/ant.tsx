@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, Text } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import {
   Screen, ScreenHeader, Card, GradientCard, Field, Button, Chip, IconButton, StatTile, EmptyState, SectionHeader,
   Delta, FadeIn, Muted, withAlpha,
@@ -14,6 +14,7 @@ import {
   money, pct, monthLabel, monthShortLabel, addMonths, firstOfMonth, lastOfMonth, toISODate, parseAmount, todayISO,
 } from "../lib/format";
 import { t } from "../lib/i18n";
+import { useAutoReload } from "../lib/dataEvents";
 import { notify, errorMessage } from "../lib/alert";
 import {
   getMonthlySummary, getCategoryBreakdown, getCashflow, getCategories, getAccountBalances, saveTransaction,
@@ -54,7 +55,7 @@ export default function AntExpenses() {
     } catch (e) { console.warn(e); }
   }, [month]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAutoReload(load);
   useEffect(() => { load(); }, [month]);
 
   async function quickAdd() {
