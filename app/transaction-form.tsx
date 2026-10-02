@@ -18,7 +18,7 @@ import { t } from "../lib/i18n";
 import { notify, confirm, errorMessage } from "../lib/alert";
 import {
   getCategories, getAccountBalances, getTransaction, saveTransaction, deleteTransaction, getAttachments,
-  saveRecurringPayment, deleteRecurringPayment, getRecurringPayments, createAccount,
+  saveRecurringPayment, deleteRecurringPayment, getRecurringPayments, createAccount, ensureExtraCategories,
 } from "../lib/queries";
 import {
   takePhoto, pickImage, pickDocument, uploadAttachment, deleteAttachment, currentLocation, type LocalFile,
@@ -59,6 +59,7 @@ export default function TransactionForm() {
   useEffect(() => {
     (async () => {
       try {
+        await ensureExtraCategories().catch(() => {});
         const [c, a] = await Promise.all([getCategories(), getAccountBalances()]);
         setCats(c); setAccts(a);
         if (params.id) {

@@ -125,6 +125,35 @@ export async function getCategories(): Promise<Category[]> {
   return data ?? [];
 }
 
+// Categorías que se agregaron después de crear la cuenta (las nuevas cuentas las reciben de seed_default_categories)
+const EXTRA_CATEGORIES: Omit<Category, "id" | "user_id" | "archived">[] = [
+  { name: "Tarjeta de crédito", kind: "expense", expense_type: "fixed", icon: "card-outline", color: "#be123c", is_ant: false },
+  { name: "Gimnasio", kind: "expense", expense_type: "fixed", icon: "barbell-outline", color: "#22c55e", is_ant: false },
+  { name: "Parqueadero clínica", kind: "expense", expense_type: "normal", icon: "car-outline", color: "#0891b2", is_ant: false },
+  { name: "Ahorro cadena", kind: "expense", expense_type: "fixed", icon: "link-outline", color: "#16a34a", is_ant: false },
+  { name: "Ahorro fondo de empleados", kind: "expense", expense_type: "fixed", icon: "people-outline", color: "#059669", is_ant: false },
+  { name: "Ahorro voluntario", kind: "expense", expense_type: "fixed", icon: "wallet-outline", color: "#10b981", is_ant: false },
+  { name: "Mi Pago", kind: "expense", expense_type: "fixed", icon: "phone-portrait-outline", color: "#7c3aed", is_ant: false },
+  { name: "Servicios EPM", kind: "expense", expense_type: "fixed", icon: "water-outline", color: "#f97316", is_ant: false },
+  { name: "Servicios Tigo", kind: "expense", expense_type: "fixed", icon: "wifi-outline", color: "#2563eb", is_ant: false },
+];
+let extrasChecked = false;
+
+/** Agrega las categorías de EXTRA_CATEGORIES que el usuario aún no tenga (una vez por sesión; respeta las archivadas). */
+export async function ensureExtraCategories() {
+  if (extrasChecked) return;
+  const { data, error } = await supabase.from("categories").select("name, kind");
+  if (error) throw error;
+  const have = new Set((data ?? []).map((c) => `${c.kind}:${c.name.toLowerCase()}`));
+  const missing = EXTRA_CATEGORIES.filter((c) => !have.has(`${c.kind}:${c.name.toLowerCase()}`));
+  if (missing.length) {
+    const { error: e } = await supabase.from("categories").insert(missing);
+    if (e) throw e;
+    notifyDataChanged();
+  }
+  extrasChecked = true;
+}
+
 export async function saveCategory(c: Partial<Category>) {
   const { error } = c.id
     ? await supabase.from("categories").update(c).eq("id", c.id)

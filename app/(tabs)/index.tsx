@@ -20,7 +20,7 @@ import { canPayNow, payableFrom } from "../../lib/recurring";
 import { useAutoReload } from "../../lib/dataEvents";
 import {
   getMonthlySummary, getAccountBalances, getCashflow, getCategoryBreakdown, getGoals, getRecurringPayments,
-  getDebts, searchTransactions, getCategories, markRecurringPaid, payingAccount,
+  getDebts, searchTransactions, getCategories, markRecurringPaid, payingAccount, ensureExtraCategories,
 } from "../../lib/queries";
 import { notify, confirm, errorMessage } from "../../lib/alert";
 import type { MonthlySummary, CashflowPoint, CategoryTotal, SavingsGoal, Transaction, Category, RecurringPayment } from "../../lib/types";
@@ -51,6 +51,7 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     try {
+      await safe(ensureExtraCategories(), undefined);
       const now = new Date();
       const from = addMonths(firstOfMonth(now), -5);
       const [s, accts, cf, cb, g, rec, debts, txs, allCats] = await Promise.all([
