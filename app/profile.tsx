@@ -3,7 +3,7 @@ import { View, Text, Pressable, Platform } from "react-native";
 import * as Linking from "expo-linking";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Screen, ScreenHeader, Card, Field, PasswordField, Button, Avatar, SectionHeader, PromptModal, Muted,
+  Screen, ScreenHeader, Card, Field, PasswordField, Button, Avatar, SectionHeader, PromptModal, Muted, ActionSheet, ListRow,
 } from "../components/UI";
 import { useSettings } from "../components/settings";
 import { useAuth } from "../components/auth";
@@ -12,7 +12,8 @@ import { t } from "../lib/i18n";
 import { notify, confirm, errorMessage } from "../lib/alert";
 import { supabase } from "../lib/supabase";
 import { uploadAvatar, deleteAllUserFiles } from "../lib/attachments";
-import { updateBiometricPassword, disableBiometric } from "../lib/biometric";
+import { updateBiometricPassword, disableBiometric, biometricInfo, isBiometricEnabled } from "../lib/biometric";
+import { router } from "expo-router";
 import { cancelAllReminders } from "../lib/notifications";
 import { dateTime } from "../lib/format";
 import { appLink } from "../lib/links";
@@ -30,6 +31,16 @@ export default function Profile() {
   const [pass2, setPass2] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [photoSheet, setPhotoSheet] = useState(false);
+  const [bio, setBio] = useState<{ label: string; on: boolean } | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    (async () => {
+      const info = await biometricInfo();
+      if (info.available) setBio({ label: info.label, on: await isBiometricEnabled() });
+    })().catch(() => {});
+  }, []);
 
   useEffect(() => { setName(profile?.display_name ?? ""); }, [profile?.display_name]);
 
@@ -38,15 +49,28 @@ export default function Profile() {
     try { await fn(); } catch (e) { notify(errorMessage(e)); } finally { setBusy(null); }
   }
 
-  const changePhoto = () => run("photo", async () => {
-    const path = await uploadAvatar(profile?.avatar_url ?? null);
-    if (path) await update({ avatar_url: path });
+  // En la web no hay cámara integrada: se abre directo el selector de archivos
+  const changePhoto = () => Platform.OS === "web" ? setPhoto("library") : setPhotoSheet(true);
+
+  const setPhoto = (source: "camera" | "library") => run("photo", async () => {
+    const previous = profile?.avatar_url ?? null;
+    const path = await uploadAvatar(source);
+    if (!path) return;
+    try { await update({ avatar_url: path }); }
+    catch (e) { await supabase.storage.from("avatars").remove([path]); throw e; }
+    // La foto anterior se borra solo cuando la nueva ya quedó guardada en el perfil
+    if (previous) await supabase.storage.from("avatars").remove([previous]).catch(() => {});
+    notify(t("Foto de perfil actualizada"));
   });
 
-  const removePhoto = () => run("photo", async () => {
-    if (profile?.avatar_url) await supabase.storage.from("avatars").remove([profile.avatar_url]);
-    await update({ avatar_url: null });
-  });
+  const removePhoto = async () => {
+    if (!(await confirm(t("¿Quitar tu foto de perfil?"), { destructive: true, okLabel: t("Quitar") }))) return;
+    run("photo", async () => {
+      const previous = profile?.avatar_url;
+      await update({ avatar_url: null });
+      if (previous) await supabase.storage.from("avatars").remove([previous]).catch(() => {});
+    });
+  };
 
   const saveName = () => run("name", async () => {
     if (!name.trim()) throw new Error(t("Escribe tu nombre"));
@@ -104,10 +128,18 @@ export default function Profile() {
         <Text style={{ color: theme.text, fontWeight: "800", fontSize: 18 }}>{profile?.display_name}</Text>
         <Text style={{ color: theme.muted }}>{email}</Text>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <Button label={t("Cambiar foto")} icon="image-outline" tone="soft" compact loading={busy === "photo"} onPress={changePhoto} />
+          <Button label={profile?.avatar_url ? t("Cambiar foto") : t("Agregar foto")} icon="camera-outline" tone="soft" compact loading={busy === "photo"} onPress={changePhoto} />
           {profile?.avatar_url && <Button label={t("Quitar")} tone="ghost" compact onPress={removePhoto} />}
         </View>
       </Card>
+
+      {bio && (
+        <Card style={{ paddingVertical: 4 }}>
+          <ListRow icon="finger-print" label={t("Ingreso con {method}", { method: bio.label })}
+            sub={bio.on ? t("Activado · toca para administrarlo") : t("Desactivado · toca para activarlo")}
+            onPress={() => router.push("/settings")} />
+        </Card>
+      )}
 
       <Card style={{ gap: 12 }}>
         <SectionHeader title={t("Nombre")} icon="person-outline" />
@@ -141,6 +173,10 @@ export default function Profile() {
       <PromptModal visible={deleteOpen} title={t("Confirmar eliminación")}
         message={t("Escribe ELIMINAR para borrar tu cuenta definitivamente.")} placeholder={t("ELIMINAR")}
         confirmLabel={t("Eliminar")} onCancel={() => setDeleteOpen(false)} onSubmit={deleteAccount} />
+      <ActionSheet visible={photoSheet} onClose={() => setPhotoSheet(false)} title={t("Foto de perfil")} options={[
+        { label: t("Tomar foto"), icon: "camera-outline", onPress: () => setPhoto("camera") },
+        { label: t("Elegir de la galería"), icon: "image-outline", onPress: () => setPhoto("library") },
+      ]} />
     </Screen>
   );
 }

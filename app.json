@@ -71,7 +71,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "FinZen usa la cámara para fotografiar tus facturas.",
+          "cameraPermission": "FinZen usa la cámara para fotografiar tus facturas y tomar tu foto de perfil.",
           "photosPermission": "FinZen accede a tus fotos para adjuntar facturas y tu foto de perfil."
         }
       ],

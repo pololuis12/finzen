@@ -122,16 +122,24 @@ export async function signedUrls(bucket: string, paths: string[], seconds = 3600
 
 // ---------------- Foto de perfil ----------------
 
-/** Comprime a 400px, sube a avatars/{uid}/ y devuelve la ruta guardada. Borra la anterior. */
-export async function uploadAvatar(previousPath: string | null): Promise<string | null> {
-  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 1 });
+/** Toma (cámara frontal) o elige la foto, la recorta cuadrada, la comprime a 400px y la sube a avatars/{uid}/.
+ *  Devuelve la ruta nueva; la anterior la borra quien llama, después de guardar el perfil. */
+export async function uploadAvatar(source: "camera" | "library" = "library"): Promise<string | null> {
+  const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 1 };
+  let res: ImagePicker.ImagePickerResult;
+  if (source === "camera") {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) throw new Error(t("Debes permitir el acceso a la cámara"));
+    res = await ImagePicker.launchCameraAsync({ ...opts, cameraType: ImagePicker.CameraType.front });
+  } else {
+    res = await ImagePicker.launchImageLibraryAsync(opts);
+  }
   if (res.canceled || !res.assets?.[0]) return null;
   const img = await compressImage(res.assets[0].uri, res.assets[0].width, 400);
   const uid = await currentUserId();
   const path = `${uid}/avatar-${Date.now()}.jpg`;
   const up = await supabase.storage.from("avatars").upload(path, await readBody(img.uri), { contentType: "image/jpeg" });
   if (up.error) throw up.error;
-  if (previousPath) await supabase.storage.from("avatars").remove([previousPath]);
   return path;
 }
 
