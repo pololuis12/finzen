@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Modal, ScrollView, Switch, Image,
-  ActivityIndicator, ViewStyle, TextStyle, Animated, Platform, RefreshControl,
+  ActivityIndicator, ViewStyle, TextStyle, Animated, Platform, RefreshControl, Keyboard, KeyboardAvoidingView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,20 +32,74 @@ export function FadeIn({ children, delay = 0, style }: { children: React.ReactNo
   );
 }
 
-/** Pantalla estándar: fondo, área segura y scroll con "jalar para actualizar". */
+// ---------------- Teclado ----------------
+// Android 15+ dibuja la app de borde a borde: el sistema ya no encoge la ventana cuando sale el teclado.
+// Por eso cada pantalla se aparta del teclado (KeyboardAvoidingView) y desplaza el campo enfocado a la vista.
+const KEYBOARD_BEHAVIOR = Platform.OS === "web" ? undefined : "padding";
+const focusListeners = new Set<() => void>();
+
+/** Contenedor que se aparta del teclado en iOS y Android (en web no hace nada). */
+export function KeyboardSafe({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+  return <KeyboardAvoidingView style={[{ flex: 1 }, style]} behavior={KEYBOARD_BEHAVIOR}>{children}</KeyboardAvoidingView>;
+}
+
+/** Desplaza el ScrollView para que el campo con foco quede visible por encima del teclado. */
+function useRevealFocusedInput(ref: React.RefObject<ScrollView | null>, enabled: boolean) {
+  const offset = useRef(0);
+  const viewport = useRef(0);
+  useEffect(() => {
+    if (Platform.OS === "web" || !enabled) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const reveal = () => {
+      clearTimeout(timer);
+      // Espera a que el KeyboardAvoidingView aplique su espacio y el ScrollView tenga su nuevo alto
+      timer = setTimeout(() => {
+        const input = TextInput.State.currentlyFocusedInput();
+        // getInnerViewRef existe en RN 0.81 (nueva arquitectura) aunque no está en los tipos
+        const inner = (ref.current as unknown as { getInnerViewRef?: () => React.ComponentRef<typeof View> | null } | null)?.getInnerViewRef?.();
+        if (!input || !inner) return;
+        input.measureLayout(inner, (_x, y, _w, h) => {
+          const margin = 24;
+          if (y + h + margin > offset.current + viewport.current) {
+            ref.current?.scrollTo({ y: y + h + margin - viewport.current, animated: true });
+          } else if (y - margin < offset.current) {
+            ref.current?.scrollTo({ y: Math.max(0, y - margin), animated: true });
+          }
+        }, () => {}); // el campo enfocado no está en esta pantalla
+      }, 150);
+    };
+    const sub = Keyboard.addListener("keyboardDidShow", reveal);
+    focusListeners.add(reveal);
+    return () => { clearTimeout(timer); sub.remove(); focusListeners.delete(reveal); };
+  }, [enabled]);
+  return {
+    onScroll: (e: { nativeEvent: { contentOffset: { y: number } } }) => { offset.current = e.nativeEvent.contentOffset.y; },
+    onLayout: (e: { nativeEvent: { layout: { height: number } } }) => { viewport.current = e.nativeEvent.layout.height; },
+  };
+}
+
+/** Pantalla estándar: fondo, área segura, se aparta del teclado y scroll con "jalar para actualizar". */
 export function Screen({ children, onRefresh, header, scroll = true, padded = true }: {
   children: React.ReactNode; onRefresh?: () => Promise<void> | void; header?: React.ReactNode;
   scroll?: boolean; padded?: boolean;
 }) {
   const [refreshing, setRefreshing] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const keep = useRevealFocusedInput(scrollRef, scroll);
   const content = { padding: padded ? 16 : 0, gap: 14, paddingBottom: 48 };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }} edges={["top"]}>
+      <KeyboardSafe>
       {header}
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
+          onScroll={keep.onScroll}
+          onLayout={keep.onLayout}
+          scrollEventThrottle={32}
           contentContainerStyle={content}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           refreshControl={onRefresh ? (
             <RefreshControl refreshing={refreshing} tintColor={theme.muted} colors={[theme.primary]}
               onRefresh={async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } }} />
@@ -53,6 +107,7 @@ export function Screen({ children, onRefresh, header, scroll = true, padded = tr
           {children}
         </ScrollView>
       ) : <View style={[{ flex: 1 }, padded && { padding: 16 }]}>{children}</View>}
+      </KeyboardSafe>
     </SafeAreaView>
   );
 }
@@ -258,7 +313,7 @@ export function Field({ label, icon, right, ...props }:
         <TextInput
           placeholderTextColor={theme.mutedDim}
           {...props}
-          onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
+          onFocus={(e) => { setFocused(true); focusListeners.forEach((l) => l()); props.onFocus?.(e); }}
           onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
           style={[s.input, props.multiline && { minHeight: 70, textAlignVertical: "top" }, props.style as TextStyle]}
         />

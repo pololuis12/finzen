@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { View, Text, KeyboardAvoidingView, Platform, ScrollView, Pressable } from "react-native";
+import { View, Text, Platform, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Card, Field, PasswordField, Button, SegBar, FadeIn, withAlpha } from "../../components/UI";
+import { KeyboardSafe, Card, Field, PasswordField, Button, SegBar, FadeIn, withAlpha } from "../../components/UI";
 import { useSettings } from "../../components/settings";
 import { supabase, isSupabaseConfigured } from "../../lib/supabase";
 import { theme } from "../../constants/theme";
@@ -90,7 +90,7 @@ export default function Login() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <LinearGradient colors={theme.gradients.loginTop} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 340 }} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardSafe>
         <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 40, gap: 18, flexGrow: 1, justifyContent: "center" }}
           keyboardShouldPersistTaps="handled">
           <FadeIn style={{ alignItems: "center", marginBottom: 8, gap: 10 }}>
@@ -152,7 +152,7 @@ export default function Login() {
             </Text>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardSafe>
     </SafeAreaView>
   );
 }

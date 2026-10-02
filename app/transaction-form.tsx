@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, Image, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, Pressable, Image, Platform } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -177,7 +177,7 @@ export default function TransactionForm() {
   const preview = parseAmount(amount);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <Screen header={<ScreenHeader title={editing ? t("Editar movimiento") : t("Nuevo movimiento")}
         right={editing ? <Pressable onPress={remove} hitSlop={8}><Ionicons name="trash-outline" size={22} color={theme.expense} /></Pressable> : undefined} />}>
         {loading ? <Loading /> : (
@@ -322,7 +322,7 @@ export default function TransactionForm() {
         { label: t("Elegir imagen"), icon: "image-outline", onPress: () => addFile(pickImage) },
         { label: t("Archivo PDF"), icon: "document-outline", onPress: () => addFile(pickDocument) },
       ]} />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen, ScreenHeader, Card, Field, Button, DateField, Label, IconCircle, Loading, Muted, SegBar } from "../components/UI";
@@ -52,7 +52,7 @@ export default function GoalForm() {
   const value = parseAmount(target);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <Screen header={<ScreenHeader title={id ? t("Editar meta") : t("Nueva meta de ahorro")} />}>
         {loading ? <Loading /> : (
           <>
@@ -95,6 +95,6 @@ export default function GoalForm() {
           </>
         )}
       </Screen>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

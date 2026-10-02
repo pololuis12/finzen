@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, Pressable, Platform } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -112,7 +112,7 @@ export default function RecurringForm() {
   const next = upcomingDueDates({ due_date: dueDate, frequency }, 3);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: theme.bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <Screen header={<ScreenHeader title={id ? t("Editar pago") : t("Nuevo pago recurrente")}
         right={id ? <Pressable onPress={remove} hitSlop={8}><Ionicons name="trash-outline" size={22} color={theme.expense} /></Pressable> : undefined} />}>
         {loading ? <Loading /> : (
@@ -194,6 +194,6 @@ export default function RecurringForm() {
           </>
         )}
       </Screen>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

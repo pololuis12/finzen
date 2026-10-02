@@ -1,12 +1,12 @@
 import { useCallback, useRef, useState } from "react";
 import {
-  View, Text, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Pressable, TextInput,
+  View, Text, ScrollView, Platform, ActivityIndicator, Pressable, TextInput,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { IconCircle, FadeIn, ScreenHeader } from "../../components/UI";
+import { KeyboardSafe, IconCircle, FadeIn, ScreenHeader } from "../../components/UI";
 import { useSettings } from "../../components/settings";
 import { theme } from "../../constants/theme";
 import { t } from "../../lib/i18n";
@@ -56,7 +56,7 @@ export default function Assistant() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }} edges={["top"]}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardSafe>
         <ScreenHeader title={t("Asistente FinZen")} sub={t("Analiza tus finanzas reales y te aconseja")} />
 
         <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 24 }}>
@@ -110,7 +110,7 @@ export default function Assistant() {
             </LinearGradient>
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardSafe>
     </SafeAreaView>
   );
 }
